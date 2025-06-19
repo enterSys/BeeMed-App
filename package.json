@@ -9,11 +9,14 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@aws-amplify/backend": "^1.0.0",
+    "@aws-amplify/backend-cli": "^1.0.0",
     "@heroui/react": "^2.7.10",
     "@prisma/client": "^6.10.1",
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.50.0",
+    "aws-amplify": "^6.0.0",
     "clsx": "^2.1.1",
     "framer-motion": "^12.18.1",
     "next": "15.3.4",

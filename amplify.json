@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "frontend": {
+    "frontend": {
+      "framework": "react",
+      "config": {
+        "SourceDir": "src",
+        "DistributionDir": ".next",
+        "BuildCommand": "npm run build",
+        "StartCommand": "npm run dev"
+      }
+    }
+  }
+}

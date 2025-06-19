@@ -49,6 +49,13 @@ export default async function DashboardLayout({
                 >
                   Leaderboard
                 </Link>
+                <Link
+                  href="/ai-assistant"
+                  className="text-gray-900 hover:text-primary-600 px-3 py-2 text-sm font-medium transition-colors flex items-center gap-1"
+                >
+                  <span>AI Assistant</span>
+                  <span className="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">New</span>
+                </Link>
               </div>
             </div>
             <div className="flex items-center">

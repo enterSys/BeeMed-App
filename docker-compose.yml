@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  # BeeMed Next.js Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: beemed-app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://beemed:beemed_password@postgres:5432/beemed_db
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - beemed-network
+    restart: unless-stopped
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: beemed-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=beemed
+      - POSTGRES_PASSWORD=beemed_password
+      - POSTGRES_DB=beemed_db
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - beemed-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U beemed"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and real-time features
+  redis:
+    image: redis:7-alpine
+    container_name: beemed-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - beemed-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Adminer for database management (development only)
+  adminer:
+    image: adminer:latest
+    container_name: beemed-adminer
+    ports:
+      - "8080:8080"
+    environment:
+      - ADMINER_DEFAULT_SERVER=postgres
+    networks:
+      - beemed-network
+    restart: unless-stopped
+    profiles:
+      - dev
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  beemed-network:
+    driver: bridge

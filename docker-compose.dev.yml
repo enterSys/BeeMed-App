@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  # Development version with hot reload
+  app-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: beemed-app-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://beemed:beemed_password@postgres:5432/beemed_db
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=dev_secret_key_change_in_production
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - beemed-network
+    command: npm run dev
+
+  postgres:
+    extends:
+      file: docker-compose.yml
+      service: postgres
+
+  redis:
+    extends:
+      file: docker-compose.yml
+      service: redis
+
+  adminer:
+    extends:
+      file: docker-compose.yml
+      service: adminer
+    profiles:
+      - tools

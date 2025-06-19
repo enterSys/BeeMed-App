@@ -1,0 +1,457 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User and Authentication
+model User {
+  id               String             @id @default(cuid())
+  email            String             @unique
+  username         String             @unique
+  passwordHash     String
+  role             UserRole           @default(STUDENT)
+  profile          UserProfile?
+  progress         UserProgress?
+  achievements     UserAchievement[]
+  inventory        InventoryItem[]
+  quizAttempts     QuizAttempt[]
+  courseEnrollments Enrollment[]
+  studyGroups      StudyGroupMember[]
+  forumPosts       ForumPost[]
+  forumComments    ForumComment[]
+  mentorships      Mentorship[]      @relation("MentorRelation")
+  mentees          Mentorship[]      @relation("MenteeRelation")
+  notifications    Notification[]
+  sessions         Session[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model UserProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName    String
+  bio            String?
+  avatarUrl      String?
+  medicalSchool  String?
+  yearOfStudy    Int?
+  specialization String?
+  location       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// Gamification System
+model UserProgress {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  totalXp           Int      @default(0)
+  currentLevel      Int      @default(1)
+  currentLevelXp    Int      @default(0)
+  nextLevelXp       Int      @default(100)
+  dailyStreak       Int      @default(0)
+  longestStreak     Int      @default(0)
+  lastActivityDate  DateTime?
+  weeklyXp          Int      @default(0)
+  monthlyXp         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Achievement {
+  id              String            @id @default(cuid())
+  code            String            @unique
+  name            String
+  description     String
+  category        AchievementCategory
+  rarity          Rarity
+  iconUrl         String?
+  xpReward        Int               @default(0)
+  unlockedBy      UserAchievement[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+model UserAchievement {
+  id            String      @id @default(cuid())
+  userId        String
+  achievementId String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement   Achievement @relation(fields: [achievementId], references: [id])
+  unlockedAt    DateTime    @default(now())
+  
+  @@unique([userId, achievementId])
+}
+
+model LootItem {
+  id          String          @id @default(cuid())
+  code        String          @unique
+  name        String
+  description String
+  type        LootItemType
+  rarity      Rarity
+  imageUrl    String?
+  effect      Json?           // Store item effects as JSON
+  inventory   InventoryItem[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model InventoryItem {
+  id         String   @id @default(cuid())
+  userId     String
+  lootItemId String
+  quantity   Int      @default(1)
+  equipped   Boolean  @default(false)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lootItem   LootItem @relation(fields: [lootItemId], references: [id])
+  obtainedAt DateTime @default(now())
+  
+  @@unique([userId, lootItemId])
+}
+
+// Learning Content
+model Course {
+  id            String       @id @default(cuid())
+  code          String       @unique
+  title         String
+  description   String
+  category      CourseCategory
+  difficulty    Difficulty
+  imageUrl      String?
+  totalXp       Int          @default(0)
+  duration      Int          // in hours
+  modules       Module[]
+  enrollments   Enrollment[]
+  prerequisites Course[]     @relation("CoursePrerequisites")
+  requiredFor   Course[]     @relation("CoursePrerequisites")
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+model Module {
+  id          String   @id @default(cuid())
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  order       Int
+  title       String
+  description String
+  lessons     Lesson[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([courseId, order])
+}
+
+model Lesson {
+  id            String         @id @default(cuid())
+  moduleId      String
+  module        Module         @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  order         Int
+  title         String
+  content       Json           // Rich content stored as JSON
+  videoUrl      String?
+  duration      Int            // in minutes
+  xpReward      Int            @default(50)
+  quizzes       Quiz[]
+  completions   LessonProgress[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  
+  @@index([moduleId, order])
+}
+
+model Quiz {
+  id          String        @id @default(cuid())
+  lessonId    String?
+  lesson      Lesson?       @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  timeLimit   Int?          // in minutes
+  xpReward    Int           @default(100)
+  questions   Question[]
+  attempts    QuizAttempt[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Question {
+  id              String           @id @default(cuid())
+  quizId          String
+  quiz            Quiz             @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  order           Int
+  type            QuestionType
+  text            String
+  explanation     String?
+  imageUrl        String?
+  points          Int              @default(10)
+  answers         Answer[]
+  userAnswers     UserAnswer[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  
+  @@index([quizId, order])
+}
+
+model Answer {
+  id           String       @id @default(cuid())
+  questionId   String
+  question     Question     @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text         String
+  isCorrect    Boolean      @default(false)
+  userAnswers  UserAnswer[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+// Progress Tracking
+model Enrollment {
+  id             String           @id @default(cuid())
+  userId         String
+  courseId       String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course         Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  progress       Int              @default(0) // percentage
+  completedAt    DateTime?
+  lessonProgress LessonProgress[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  
+  @@unique([userId, courseId])
+}
+
+model LessonProgress {
+  id           String     @id @default(cuid())
+  enrollmentId String
+  lessonId     String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  lesson       Lesson     @relation(fields: [lessonId], references: [id])
+  completed    Boolean    @default(false)
+  xpEarned     Int        @default(0)
+  completedAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  
+  @@unique([enrollmentId, lessonId])
+}
+
+model QuizAttempt {
+  id           String       @id @default(cuid())
+  userId       String
+  quizId       String
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz         Quiz         @relation(fields: [quizId], references: [id])
+  score        Int
+  totalPoints  Int
+  xpEarned     Int          @default(0)
+  timeSpent    Int?         // in seconds
+  passed       Boolean      @default(false)
+  userAnswers  UserAnswer[]
+  completedAt  DateTime     @default(now())
+  
+  @@index([userId, quizId])
+}
+
+model UserAnswer {
+  id            String      @id @default(cuid())
+  attemptId     String
+  questionId    String
+  answerId      String?
+  attempt       QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question      Question    @relation(fields: [questionId], references: [id])
+  answer        Answer?     @relation(fields: [answerId], references: [id])
+  textAnswer    String?     // For open-ended questions
+  isCorrect     Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  
+  @@unique([attemptId, questionId])
+}
+
+// Social Features
+model StudyGroup {
+  id          String             @id @default(cuid())
+  name        String
+  description String?
+  imageUrl    String?
+  isPrivate   Boolean            @default(false)
+  maxMembers  Int                @default(20)
+  members     StudyGroupMember[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+model StudyGroupMember {
+  id           String     @id @default(cuid())
+  userId       String
+  groupId      String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group        StudyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  role         GroupRole  @default(MEMBER)
+  joinedAt     DateTime   @default(now())
+  
+  @@unique([userId, groupId])
+}
+
+model ForumCategory {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  slug        String      @unique
+  order       Int         @default(0)
+  posts       ForumPost[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model ForumPost {
+  id           String         @id @default(cuid())
+  authorId     String
+  categoryId   String
+  author       User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  category     ForumCategory  @relation(fields: [categoryId], references: [id])
+  title        String
+  content      String
+  isPinned     Boolean        @default(false)
+  viewCount    Int            @default(0)
+  comments     ForumComment[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model ForumComment {
+  id        String       @id @default(cuid())
+  postId    String
+  authorId  String
+  post      ForumPost    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content   String
+  upvotes   Int          @default(0)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+}
+
+model Mentorship {
+  id        String   @id @default(cuid())
+  mentorId  String
+  menteeId  String
+  mentor    User     @relation("MentorRelation", fields: [mentorId], references: [id], onDelete: Cascade)
+  mentee    User     @relation("MenteeRelation", fields: [menteeId], references: [id], onDelete: Cascade)
+  status    MentorshipStatus @default(PENDING)
+  message   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([mentorId, menteeId])
+}
+
+// Notifications
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+}
+
+// Enums
+enum UserRole {
+  STUDENT
+  INSTRUCTOR
+  ADMIN
+}
+
+enum Rarity {
+  COMMON
+  UNCOMMON
+  RARE
+  EPIC
+  LEGENDARY
+}
+
+enum AchievementCategory {
+  LEARNING
+  SOCIAL
+  CONSISTENCY
+  MASTERY
+  SPECIAL
+}
+
+enum LootItemType {
+  AVATAR_FRAME
+  BADGE
+  TITLE
+  XP_BOOST
+  THEME
+}
+
+enum CourseCategory {
+  ANATOMY
+  PHYSIOLOGY
+  PATHOLOGY
+  PHARMACOLOGY
+  CLINICAL_SKILLS
+  MEDICAL_ETHICS
+}
+
+enum Difficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  OPEN_ENDED
+  CASE_STUDY
+}
+
+enum GroupRole {
+  OWNER
+  MODERATOR
+  MEMBER
+}
+
+enum MentorshipStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum NotificationType {
+  ACHIEVEMENT_UNLOCKED
+  LEVEL_UP
+  QUIZ_COMPLETED
+  COURSE_COMPLETED
+  STUDY_GROUP_INVITE
+  MENTORSHIP_REQUEST
+  SYSTEM
+}
